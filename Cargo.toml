@@ -1,0 +1,21 @@
+[package]
+name = "rusty-chat"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+tokio = { version = "1.41.1", features = ["full"]}
+log = "0.4.22"
+tokio-tungstenite = "0.24.0"
+env_logger = "0.11.5"
+futures-util = "0.3.31"
+futures = "0.3.31"
+futures-channel = "0.3.31"
