@@ -9,8 +9,8 @@ use std::{
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
 
-type Tx = UnboundedSender<Message>;
-type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
+type Sender = UnboundedSender<Message>;
+type PeerMap = Arc<Mutex<HashMap<SocketAddr, Sender>>>;
 
 /* struct ChannelManager {
     channels: Arc<Mutex<std::collections::HashMap<String, Vec<mpsc::UnboundedSender<Message>>>>>,
@@ -55,9 +55,9 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
 
     println!("WebSocket connection established with {}", addr);
 
-    let (unbounded_sender, unbounded_receiver) = unbounded::<Message>();
+    let (sender, receiver) = unbounded::<Message>();
 
-    peer_map.lock().unwrap().insert(addr, unbounded_sender);
+    peer_map.lock().unwrap().insert(addr, sender);
 
     let (outgoing, incoming) = ws_stream.split();
 
@@ -76,13 +76,14 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
             .map(|(_, ws_sink)| ws_sink);
 
         for recp in broadcast_recipients {
-            recp.unbounded_send(msg.clone()).unwrap();
+            recp.unbounded_send(msg.clone())
+                .unwrap();
         }
 
         future::ok(())
     });
 
-    let receive_from_others = unbounded_receiver.map(Ok).forward(outgoing);
+    let receive_from_others = receiver.map(Ok).forward(outgoing);
 
     pin_mut!(broadcast_incoming, receive_from_others);
 
