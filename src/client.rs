@@ -12,18 +12,21 @@ async fn main() {
     print!("Enter your username: ");
     std::io::stdout().flush().expect("Failed to flush stdout");
     let mut username = String::new();
-    let _ = std::io::stdin().read_line(&mut username).expect("Failed to read username from stdin");
+    let _ = std::io::stdin()
+        .read_line(&mut username)
+        .expect("Failed to read username from stdin");
     let mut username = username.trim().to_string();
     username.push_str(": ");
-    
-    let url =
-        env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least one argument"));
+
+    let url = env::args()
+        .nth(1)
+        .unwrap_or_else(|| panic!("this program requires at least one argument"));
 
     let (sender, receiver) = futures_channel::mpsc::unbounded();
-    tokio::spawn(read_stdin(username, sender));
-
     let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
+
+    tokio::spawn(read_stdin(username.as_bytes().to_vec(), sender));
 
     let (outgoing, incoming) = ws_stream.split();
 
@@ -41,18 +44,17 @@ async fn main() {
 
 // Our helper method which will read data from stdin and send it along the
 // sender provided.
-async fn read_stdin(username: String, sender: Sender) {
+async fn read_stdin(username: Vec<u8>, sender: Sender) {
     let mut stdin = tokio::io::stdin();
-    let  msg = username.as_bytes().to_vec();
     loop {
         let mut buf = vec![0; 1024];
         let n = match stdin.read(&mut buf).await {
             Err(_) | Ok(0) => break,
             Ok(n) => n,
         };
-        buf.truncate(n);
-        let mut msg = msg.clone();
-        msg.append(&mut buf);
-        sender.unbounded_send(Message::Binary(msg)).unwrap();
+        let username = username.clone();
+        buf.truncate(username.len() + n);
+        buf.splice(0..0, username);
+        sender.unbounded_send(Message::Binary(buf)).unwrap();
     }
 }

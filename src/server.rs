@@ -12,18 +12,6 @@ use tokio_tungstenite::tungstenite::Message;
 type Sender = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Sender>>>;
 
-/* struct ChannelManager {
-    channels: Arc<Mutex<std::collections::HashMap<String, Vec<mpsc::UnboundedSender<Message>>>>>,
-}
-
-impl ChannelManager {
-    fn new() -> Self {
-        ChannelManager {
-            channels: Arc::new(Mutex::new(std::collections::HashMap::new())),
-        }
-    }
-} */
-
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {
     let addr = env::args()
@@ -55,18 +43,16 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
 
     println!("WebSocket connection established with {}", addr);
 
-    let (sender, receiver) = unbounded::<Message>();
+    let (sender, receiver) = unbounded();
 
     peer_map.lock().unwrap().insert(addr, sender);
 
     let (outgoing, incoming) = ws_stream.split();
 
     let broadcast_incoming = incoming.try_for_each(|msg| {
-        println!(
-            "Received a message from {}: {}",
-            addr,
-            msg.to_text().unwrap()
-        );
+        let text = msg.to_text().unwrap();
+
+        println!("Received a message from {}: {}", addr, text);
 
         let peers = peer_map.lock().unwrap();
 
@@ -76,8 +62,7 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
             .map(|(_, ws_sink)| ws_sink);
 
         for recp in broadcast_recipients {
-            recp.unbounded_send(msg.clone())
-                .unwrap();
+            recp.unbounded_send(msg.clone()).unwrap();
         }
 
         future::ok(())
